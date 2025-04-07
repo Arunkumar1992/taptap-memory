@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TapTap Memory</title>
+  <style>
+    :root {
+      --box-size: 70px;
+    }
+
+    @media (max-width: 500px) {
+      :root {
+        --box-size: 60px;
+      }
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      background: #f9fafb;
+      margin: 0;
+      padding: 1rem;
+      color: #111827;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin: 0.5rem 0;
+    }
+
+    .info {
+      font-size: 1rem;
+      margin: 1rem 0;
+    }
+
+    .color-row {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .color-box {
+      width: var(--box-size);
+      height: var(--box-size);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .color-box.pulse {
+      animation: pulse 0.3s;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    #message {
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin: 0.5rem 0;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .results {
+      margin-top: 1rem;
+    }
+
+    .preview-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      margin: 0.2rem;
+      display: inline-block;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .correct {
+      outline: 2px solid green;
+    }
+
+    .wrong {
+      outline: 2px solid red;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎯 TapTap Memory</h1>
+  <div class="info">
+    Level: <span id="level">1</span> |
+    Score: <span id="score">0</span> |
+    High Score: <span id="highScore">0</span>
+  </div>
+
+  <div id="message">🕒 Get ready...</div>
+
+  <div class="color-row" id="sequenceDisplay"></div>
+  <div class="color-row hidden" id="colorOptions"></div>
+
+  <div class="results hidden" id="results">
+    <p>Correct:</p>
+    <div id="correctSequence"></div>
+    <p>Your Attempt:</p>
+    <div id="userSequence"></div>
+  </div>
+
+  <!-- Sounds -->
+  <audio id="tapSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
+  <audio id="failSound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg" preload="auto"></audio>
+
+  <script>
+    const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#e879f9'];
+    let level = 1;
+    let score = 0;
+    let highScore = localStorage.getItem('taptapHighScore') || 0;
+    let sequence = [];
+    let userSequence = [];
+    let isShowingPattern = false;
+
+    const sequenceDisplay = document.getElementById('sequenceDisplay');
+    const colorOptions = document.getElementById('colorOptions');
+    const message = document.getElementById('message');
+    const levelEl = document.getElementById('level');
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highScore');
+    const results = document.getElementById('results');
+    const correctSequence = document.getElementById('correctSequence');
+    const userSequenceEl = document.getElementById('userSequence');
+    const tapSound = document.getElementById('tapSound');
+    const failSound = document.getElementById('failSound');
+
+    highScoreEl.textContent = highScore;
+
+    function startGame() {
+      userSequence = [];
+      isShowingPattern = true;
+      colorOptions.classList.add('hidden');
+      results.classList.add('hidden');
+      const patternLength = 3 + Math.floor((level - 1) / 5);
+      sequence = Array.from({ length: patternLength }, () => colors[Math.floor(Math.random() * colors.length)]);
+
+      let countdown = 3;
+      message.textContent = `🕒 Get ready: ${countdown}`;
+      sequenceDisplay.innerHTML = '';
+
+      const countdownTimer = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          message.textContent = `🕒 Get ready: ${countdown}`;
+        } else {
+          clearInterval(countdownTimer);
+          showPattern();
+        }
+      }, 1000);
+    }
+
+    function showPattern() {
+      sequenceDisplay.innerHTML = '';
+      message.textContent = '🧠 Memorize the pattern!';
+      sequence.forEach(color => {
+        const box = document.createElement('div');
+        box.className = 'color-box';
+        box.style.backgroundColor = color;
+        sequenceDisplay.appendChild(box);
+      });
+
+      const speed = Math.max(1000 - Math.floor(level / 5) * 150, 300);
+
+      setTimeout(() => {
+        sequenceDisplay.innerHTML = '';
+        colorOptions.classList.remove('hidden');
+        message.textContent = '🔍 Now, tap the colors in order!';
+        isShowingPattern = false;
+      }, speed * sequence.length);
+    }
+
+    function buildColorButtons() {
+      colorOptions.innerHTML = '';
+      colors.forEach(color => {
+        const btn = document.createElement('div');
+        btn.className = 'color-box';
+        btn.style.backgroundColor = color;
+        btn.addEventListener('click', () => handleTap(color, btn));
+        colorOptions.appendChild(btn);
+      });
+    }
+
+    function handleTap(color, element) {
+      if (isShowingPattern) return;
+      tapSound.currentTime = 0;
+      tapSound.play();
+
+      element.classList.add('pulse');
+      setTimeout(() => element.classList.remove('pulse'), 300);
+
+      userSequence.push(color);
+
+      if (userSequence.length === sequence.length) {
+        validateSequence();
+      }
+    }
+
+    function validateSequence() {
+      let success = true;
+      for (let i = 0; i < sequence.length; i++) {
+        if (userSequence[i] !== sequence[i]) {
+          success = false;
+          break;
+        }
+      }
+
+      if (success) {
+        score++;
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem('taptapHighScore', highScore);
+          highScoreEl.textContent = highScore;
+        }
+        message.textContent = '✅ Correct! Next level...';
+        level++;
+        levelEl.textContent = level;
+        scoreEl.textContent = score;
+        setTimeout(startGame, 1200);
+      } else {
+        failSound.currentTime = 0;
+        failSound.play();
+        message.textContent = '❌ Wrong sequence! Restarting...';
+        level = 1;
+        score = 0;
+        levelEl.textContent = level;
+        scoreEl.textContent = score;
+        showResults();
+        setTimeout(startGame, 3000);
+      }
+    }
+
+    function showResults() {
+      results.classList.remove('hidden');
+      correctSequence.innerHTML = '';
+      userSequenceEl.innerHTML = '';
+
+      sequence.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'preview-box';
+        div.style.backgroundColor = c;
+        correctSequence.appendChild(div);
+      });
+
+      userSequence.forEach((c, i) => {
+        const div = document.createElement('div');
+        div.className = 'preview-box';
+        div.style.backgroundColor = c;
+        div.classList.add(c === sequence[i] ? 'correct' : 'wrong');
+        userSequenceEl.appendChild(div);
+      });
+    }
+
+    buildColorButtons();
+    startGame();
+  </script>
+</body>
+</html>
